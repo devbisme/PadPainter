@@ -87,7 +87,7 @@ class LabelledListBox(wx.BoxSizer):
         self.Add(self.lbx, 1, wx.ALL | wx.EXPAND)
         self.AddSpacer(WIDGET_SPACING)
 
-class Symbol(object):
+class Part(object):
     '''Object for storing part symbol data.'''
     pass
 
@@ -96,13 +96,13 @@ class Pin(object):
     pass
 
 
-def get_part_symbols(netlist_file):
-    '''Get part symbol information from a netlist file.'''
+def get_parts_from_netlist(netlist_file):
+    '''Get part part information from a netlist file.'''
 
     # Get the local and global files that contain the symbol tables.
     # Place the global file first so its entries will be overridden by any
     # matching entries in the local file.
-    sym_lib_tbls = []
+    sym_lib_tbl_files = []  # Store the symbol table file paths here.
     brd_file = GetBoard().GetFileName()
     brd_dir = os.path.abspath(os.path.dirname(brd_file))
     brd_name = os.path.splitext(os.path.basename(brd_file))[0]
@@ -114,19 +114,19 @@ def get_part_symbols(netlist_file):
         os.environ.get('KICAD_CONFIG_HOME', default_home),
         brd_dir
     ]
-
     for dir in dirs:
-        sym_lib_tbl = os.path.join(dir, 'sym-lib-table')
-        if os.path.isfile(sym_lib_tbl):
-            sym_lib_tbls.append(sym_lib_tbl)
+        sym_lib_tbl_file = os.path.join(dir, 'sym-lib-table')
+        if os.path.isfile(sym_lib_tbl_file):
+            sym_lib_tbl_files.append(sym_lib_tbl_file)
 
-    # Regular expression for getting the symbol library name and file location.
-    sym_tbl_re = '\(lib \(name ([^)]+)\).*\(uri ([^)]+)\)'
+    # Regular expression for getting the symbol library name and file location
+    # from the symbol table file.
+    sym_tbl_re = '\(\s*lib\s+\(\s*name\s+([^)]+)\s*\).*\(\s*uri\s+([^)]+)\s*\)'
 
     # Process the global and local symbol library tables to create a dict
     # of the symbol library names and their file locations.
     sym_lib_files = {}
-    for tbl_file in sym_lib_tbls:
+    for tbl_file in sym_lib_tbl_files:
         with open(tbl_file, 'r') as fp:
             for line in fp:
                 srch_result = re.search(sym_tbl_re, line)
@@ -142,12 +142,13 @@ def get_part_symbols(netlist_file):
         if os.path.isfile(file_name):
             sym_lib_files[lib_name.lower()] = file_name
 
-    # Regular expressions for getting the part reference and symbol library.
-    comp_ref_re = '\(\s*comp\s+\(\s*ref\s+([_A-Za-z][_A-Za-z0-9]*)\)'
-    comp_lib_re = '\(\s*libsource\s+\(\s*lib\s+([^)]+)\)\s+\(\s*part\s+([^)]+)\)\)'
+    # Regular expressions for getting the part reference and symbol library
+    # from the netlist file.
+    comp_ref_re = '\(\s*comp\s+\(\s*ref\s+([_A-Za-z][_A-Za-z0-9]*)\s*\)'
+    comp_lib_re = '\(\s*libsource\s+\(\s*lib\s+([^)]+)\s*\)\s+\(\s*part\s+([^)]+)\s*\)\s*\)'
 
-    # Scan through the netlist searching for the part references and symbol libraries.
-    symbols = {}
+    # Scan through the netlist searching for the part references and libraries.
+    parts = {}
     with open(netlist_file, 'r') as fp:
         for line in fp:
 
@@ -155,41 +156,39 @@ def get_part_symbols(netlist_file):
             srch_result = re.search(comp_ref_re, line)
             if srch_result:
                 ref = srch_result.group(1)
-                symbols[ref] = None
+                parts[ref] = None
                 continue  # Reference found, so continue with next line.
 
-            # Search for symbol library associated with part reference.
+            # Search for symbol library associated with the part reference.
             srch_result = re.search(comp_lib_re, line)
             if srch_result:
-                symbol = Symbol()
-                symbol.lib = srch_result.group(1).lower()
-                symbol.part = srch_result.group(2)
-                symbols[ref] = symbol
+                part = Part()
+                part.lib = srch_result.group(1).lower()
+                part.part = srch_result.group(2)
+                parts[ref] = part
                 continue  # Library found, so continue with next line.
 
-    for symbol in symbols.values():
-        if symbol is None:
-            continue
-        try:
-            symbol.lib_file = sym_lib_files[symbol.lib]
-        except Exception as e:
-            symbol.lib_file = 'ERROR'
-            debug_dialog('$'+str(e))
+    # For each symbol, store the path to the file associated with that symbol's library.
+    for part in parts.values():
+        if part:
+            part.lib_file = sym_lib_files.get(part.lib, None)
 
-    return symbols
+    return parts
 
 
-def read_part_symbol(ref, symbols):
+def get_part_info_from_lib(ref, parts):
+    '''Fill-in part information from its associated library file.'''
     try:
-        symbol = symbols[ref]
+        part = parts[ref]
     except Exception:
-        raise Exception(ref + ' not a valid part!')
-    lib_file = symbol.lib_file
-    part = symbol.part
+        debug_dialog(ref + 'was not found in the netlist!')
+        raise Exception(ref + 'was not found in the netlist!')
 
-    symbol.pins = {}
-    symbol.units = set()
-    with open(lib_file, 'r') as fp:
+    part.pins = {}  # Store part's pin information here.
+    part.units = set()  # Store list of part's units here.
+
+    # Find the part in the library and get the info for each pin.
+    with open(part.lib_file, 'r') as fp:
         part_found = False
         for line in fp:
             if part_found:
@@ -202,15 +201,17 @@ def read_part_symbol(ref, symbols):
                     pin.name = pin_info[1]
                     pin.func = pin_info[11]
                     pin.unit = pin_info[9]
-                    symbol.pins[pin.num] = pin
-                    symbol.units.add(pin.unit)
+                    part.pins[pin.num] = pin
+                    part.units.add(pin.unit)
                 continue
+
             #part_found = re.search(r'^DEF\s+'+part+r'\s+', line)
-            part_found = line.startswith('DEF '+part+' ')
+            part_found = line.startswith('DEF '+part.part+' ')
 
 
 def guess_netlist_file():
     '''Try to find the netlist file for this PCB.'''
+
     design_name = os.path.splitext(os.path.abspath(
         GetBoard().GetFileName()))[0]
     netlist_file_name = design_name + '.net'
@@ -223,8 +224,7 @@ class PadPainterFrame(wx.Frame):
     def __init__(self, title):
         '''Create the GUI for the pad painter.'''
 
-        wx.Frame.__init__(
-            self, None, title=title, pos=(150, 150), size=(550, 290))
+        wx.Frame.__init__(self, None, title=title, pos=(150, 150))
 
         # menu_bar = wx.MenuBar()
         # menu = wx.Menu()
@@ -238,7 +238,7 @@ class PadPainterFrame(wx.Frame):
         # self.CreateStatusBar()
 
         # Main panel holding all the widgets.
-        panel = wx.Panel(self)
+        panel = wx.Panel(parent=self)
 
         # File browser widget for getting netlist file for this layout.
         netlist_file_wildcard = 'Netlist File|*.net|All Files|*.*'
@@ -260,8 +260,8 @@ class PadPainterFrame(wx.Frame):
             p.GetReference() for p in GetBoard().GetModules()
             if p.IsSelected()
         ])
-        self.parts = LabelledTextCtrl( parent=panel, label='Parts:', value=selected_parts)
-        self.Bind(wx.EVT_TEXT_ENTER, self.UpdateUnits, self.parts.ctrl)
+        self.part_refs = LabelledTextCtrl(parent=panel, label='Parts:', value=selected_parts)
+        self.Bind(wx.EVT_TEXT_ENTER, self.UpdateUnits, self.part_refs.ctrl)
 
         # Widget for specifying the units in the parts that will be painted.
         self.units = LabelledListBox(parent=panel, label='Units:', choices=[])
@@ -279,11 +279,11 @@ class PadPainterFrame(wx.Frame):
             'In': 'I', 
             'Out': 'O', 
             'I/O': 'B', 
-            'Tristate': 'T', 
-            'Pwr In': 'W',
+            '3-State': 'T', 
+            'Pwr': 'W',
             'Pwr Out': 'w',
             'Passive': 'P',
-            'Unspec.': 'U',
+            'Unspec': 'U',
             'OpenColl': 'C',
             'OpenEmit': 'E',
             'NC': 'N',
@@ -294,11 +294,15 @@ class PadPainterFrame(wx.Frame):
         }
         for btn_lbl in self.pin_func_btns:
             self.pin_func_btns[btn_lbl].SetLabel(btn_lbl)
+            self.pin_func_btns[btn_lbl].SetValue(True)
+
+        # Add extra checkboxes for checking all or none of the pin function checkboxes.
         self.all_ckbx = wx.CheckBox(panel, label='All')  # Check all the boxes.
         self.none_ckbx = wx.CheckBox(
             panel, label='None')  # Uncheck all the boxes.
         self.Bind(wx.EVT_CHECKBOX,
                   self.HandlePinFuncBtns)  # Function to handle the checkboxes.
+        self.UpdateAllNoneBtns()
 
         # Action buttons for painting and clearing the selected pads.
         self.paint_btn = wx.Button(panel, -1, 'Paint')
@@ -311,18 +315,35 @@ class PadPainterFrame(wx.Frame):
         # Create a horizontal sizer for holding all the pin-function checkboxes.
         pin_func_sizer = wx.BoxSizer(wx.HORIZONTAL)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            wx.StaticText(panel, label='Pin Functions:'),
+        pin_func_sizer.Add(wx.StaticText(panel, label='Pin Functions:'),
             flag=wx.ALL | wx.ALIGN_CENTER)
-        for pin_func_btn_lbl in self.pin_func_btn_lbls:
-            pin_func_sizer.AddSpacer(WIDGET_SPACING)
-            pin_func_sizer.Add(
-                self.pin_func_btns[pin_func_btn_lbl],
-                flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(3 * WIDGET_SPACING)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
         pin_func_sizer.Add(self.all_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
         pin_func_sizer.Add(self.none_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(5 * WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['In'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['Out'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['I/O'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['Pwr'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['Pwr Out'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['3-State'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['OpenColl'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['OpenEmit'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['Passive'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['Unspec'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
+        pin_func_sizer.Add(self.pin_func_btns['NC'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.AddSpacer(WIDGET_SPACING)
 
         # Create a horizontal sizer for holding the action buttons.
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -336,99 +357,78 @@ class PadPainterFrame(wx.Frame):
 
         # Create a vertical sizer to hold everything in the panel.
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
-                  WIDGET_SPACING)
-        sizer.Add(self.parts, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
+        sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
+        sizer.Add(self.part_refs, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.units, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.nums, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.names, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
         sizer.Add(btn_sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
+
+        # Size the panel.
         panel.SetSizer(sizer)
         panel.Layout()
+        panel.Fit()
 
-        #self.FileBrowserHandler(0)
+        # Finally, size the frame that holds the panel.
+        self.Fit()
 
     def UpdateUnits(self, evt):
         '''Update the list of part units.'''
-        self.symbols = get_part_symbols(self.netlist_file_picker.GetPath())
-        self.part_refs = [p.strip() for p in self.parts.ctrl.GetValue().split(',')]
-        for ref in self.part_refs:
-            read_part_symbol(ref, self.symbols)
+        self.parts = get_parts_from_netlist(self.netlist_file_picker.GetPath())
+        part_refs = [p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p]
+        for ref in part_refs:
+            get_part_info_from_lib(ref, self.parts)
 
         units = set()
-        for ref in self.part_refs:
-            units |= self.symbols[ref].units
+        for ref in part_refs:
+            units |= self.parts[ref].units
 
         self.units.lbx.Clear()
         self.units.lbx.InsertItems(list(units),0)
+        for i in range(self.units.lbx.GetCount()):
+            self.units.lbx.SetSelection(i)
 
 
-    def GetUnits(self):
+    def SelectPads(self):
         lbx = self.units.lbx
-        return [lbx.GetString(i) for i in lbx.GetSelections()]
-
-
-    def OnPaint(self, evt):
-        '''Paint the specified pads.'''
-        selected_units = self.GetUnits()
+        selected_units = [lbx.GetString(i) for i in lbx.GetSelections()]
         num_re = self.nums.ctrl.GetValue()
         name_re = self.names.ctrl.GetValue()
+        part_refs = [p.strip() for p in self.part_refs.ctrl.GetValue().split(',')]
+        selected_pin_funcs = [self.pin_func_btn_lbls[btn.GetLabel()] for btn in self.pin_func_btns.values() if btn.GetValue()]
+        selected_pads = []
         for part in GetBoard().GetModules():
             ref = part.GetReference()
-            if self.part_refs and (ref not in self.part_refs):
+            if ref not in part_refs:
                 continue
             try:
-                symbol = self.symbols[ref]
+                symbol = self.parts[ref]
             except KeyError:
                 continue
             for pad in part.Pads():
                 pin = symbol.pins[pad.GetName()]
-                if pin.unit in selected_units and re.search(num_re, pin.num) and re.search(name_re, pin.name) and pin.func in self.selected_pin_funcs:
-                    pad.SetBrightened()
+                if pin.unit in selected_units and re.search(num_re, pin.num) and re.search(name_re, pin.name) and pin.func in selected_pin_funcs:
+                    selected_pads.append(pad)
+        return selected_pads
+
+    def OnPaint(self, evt):
+        '''Paint the specified pads.'''
+        for pad in self.SelectPads():
+            pad.SetBrightened()
         Refresh()
 
     def OnClear(self, evt):
         '''Clear the specified pads.'''
-        # self.symbols = get_part_symbols(self.netlist_file_picker.GetPath())
-        # self.part_refs = [p.strip() for p in self.parts.ctrl.GetValue().split(',')]
-        selected_units = self.GetUnits()
-        num_re = self.nums.ctrl.GetValue()
-        name_re = self.names.ctrl.GetValue()
-        for part in GetBoard().GetModules():
-            ref = part.GetReference()
-            if self.part_refs and (ref not in self.part_refs):
-                continue
-            try:
-                symbol = self.symbols[ref]
-            except KeyError:
-                continue
-            for pad in part.Pads():
-                pin = symbol.pins[pad.GetName()]
-                if pin.unit in selected_units and re.search(num_re, pin.num) and re.search(name_re, pin.name) and pin.func in self.selected_pin_funcs:
-                    pad.ClearBrightened()
+        for pad in self.SelectPads():
+            pad.ClearBrightened()
         Refresh()
 
     def OnDone(self, evt):
         '''Close GUI when Done button is clicked.'''
         self.Close()
 
-    def HandlePinFuncBtns(self, evt):
-        '''Handle checking/unchecking pin function checkboxes.'''
-
-        ckbx = evt.GetEventObject()  # Get the checkbox that was clicked.
-
-        # If the All box was checked, then check all the pin function boxes.
-        # But if the None box was checked, then uncheck all the pin function boxes.
-        if ckbx is self.all_ckbx:
-            if self.all_ckbx.GetValue():
-                for cb in self.pin_func_btns.values():
-                    cb.SetValue(True)
-        elif ckbx is self.none_ckbx:
-            if self.none_ckbx.GetValue():
-                for cb in self.pin_func_btns.values():
-                    cb.SetValue(False)
-
+    def UpdateAllNoneBtns(self):
         # Get the checked/unchecked status of all the pin function boxes.
         btn_values = [btn.GetValue() for btn in self.pin_func_btns.values()]
 
@@ -447,7 +447,23 @@ class PadPainterFrame(wx.Frame):
             self.all_ckbx.SetValue(False)
             self.none_ckbx.SetValue(False)
 
-        self.selected_pin_funcs = [self.pin_func_btn_lbls[btn.GetLabel()] for btn in self.pin_func_btns.values() if btn.GetValue()]
+    def HandlePinFuncBtns(self, evt):
+        '''Handle checking/unchecking pin function checkboxes.'''
+
+        ckbx = evt.GetEventObject()  # Get the checkbox that was clicked.
+
+        # If the All box was checked, then check all the pin function boxes.
+        # But if the None box was checked, then uncheck all the pin function boxes.
+        if ckbx is self.all_ckbx:
+            if self.all_ckbx.GetValue():
+                for cb in self.pin_func_btns.values():
+                    cb.SetValue(True)
+        elif ckbx is self.none_ckbx:
+            if self.none_ckbx.GetValue():
+                for cb in self.pin_func_btns.values():
+                    cb.SetValue(False)
+
+        self.UpdateAllNoneBtns()
 
 class PadPainter(ActionPlugin):
     def defaults(self):
