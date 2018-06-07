@@ -107,7 +107,7 @@ class Pin(object):
 
 
 def get_parts_from_netlist(netlist_file):
-    '''Get part part information from a netlist file.'''
+    '''Get part information from a netlist file.'''
 
     # Get the local and global files that contain the symbol tables.
     # Place the global file first so its entries will be overridden by any
@@ -183,8 +183,9 @@ def get_parts_from_netlist(netlist_file):
     return parts
 
 
-def get_part_info_from_lib(ref, parts):
+def fillin_part_info_from_lib(ref, parts):
     '''Fill-in part information from its associated library file.'''
+
     try:
         part = parts[ref]
     except Exception:
@@ -200,8 +201,11 @@ def get_part_info_from_lib(ref, parts):
         for line in fp:
             if part_found:
                 if line.startswith('ENDDEF'):
+                    # Found the end of the desired part def, so we're done.
                     break
+
                 if line.startswith('X '):
+                    # Read pin information records once the desired part def is found.
                     pin_info = line.split()
                     pin = Pin()
                     pin.num = pin_info[2]
@@ -210,10 +214,12 @@ def get_part_info_from_lib(ref, parts):
                     pin.unit = pin_info[9]
                     part.pins[pin.num] = pin
                     part.units.add(pin.unit)
+
                 continue
 
-            #part_found = re.search(r'^DEF\s+'+part+r'\s+', line)
-            part_found = line.startswith('DEF ' + part.part + ' ')
+            # Look for the start of the desired part's definition.
+            part_found = (re.search(r'^DEF\s+' + part.part + r'\s+', line) or
+                re.search(r'^ALIAS\s+([^\s]+\s+)*' + part.part + r'\s+', line))
 
 
 def guess_netlist_file():
@@ -423,7 +429,7 @@ class PadPainterFrame(wx.Frame):
             p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
         ]
         for ref in part_refs:
-            get_part_info_from_lib(ref, self.parts)
+            fillin_part_info_from_lib(ref, self.parts)
 
         units = set()
         for ref in part_refs:
@@ -456,20 +462,28 @@ class PadPainterFrame(wx.Frame):
 
         # Go through the pads and select those that meet the criteria.
         selected_pads = []
-        for part in GetBoard().GetModules():
-            ref = part.GetReference()
-            if ref not in part_refs:
-                continue
-            try:
-                symbol = self.parts[ref]
-            except KeyError:
-                continue
-            for pad in part.Pads():
-                pin = symbol.pins[pad.GetName()]
-                if (pin.unit in selected_units and re.search(num_re, pin.num)
-                        and re.search(name_re, pin.name)
-                        and pin.func in selected_pin_funcs):
-                    selected_pads.append(pad)
+        try:
+            for part in GetBoard().GetModules():
+                ref = part.GetReference()
+                if ref not in part_refs:
+                    continue
+                try:
+                    symbol = self.parts[ref]
+                except KeyError:
+                    continue
+                for pad in part.Pads():
+                    try:
+                        pin = symbol.pins[pad.GetName()]
+                    except KeyError:
+                        # This usually happens when the footprint has a mounting
+                        # hole that's not associated with a pin in the electrical symbol.
+                        continue
+                    if (pin.unit in selected_units and re.search(num_re, pin.num)
+                            and re.search(name_re, pin.name)
+                            and pin.func in selected_pin_funcs):
+                        selected_pads.append(pad)
+        except Exception as e:
+            debug_dialog('Something went wrong while selecting pads: '+repr(e))
 
         # Return the selected pads.
         return selected_pads
@@ -512,7 +526,7 @@ class PadPainterFrame(wx.Frame):
             self.none_ckbx.SetValue(False)
 
     def HandlePinFuncBtns(self, evt):
-        '''Handle checking/unchecking pin function checkboxes.'''
+        '''Handle checking/unchecking of pin function checkboxes.'''
 
         ckbx = evt.GetEventObject()  # Get the checkbox that was clicked.
 
@@ -532,12 +546,12 @@ class PadPainterFrame(wx.Frame):
 
 class PadPainter(ActionPlugin):
     def defaults(self):
-        self.name = "Pad Painter"
+        self.name = "PadPainter"
         self.category = "Layout"
-        self.description = "Brightens part pads that meet a set of conditions."
+        self.description = "Highlights part pads that meet a set of conditions."
 
     def Run(self):
-        frame = PadPainterFrame('Pad Painter')
+        frame = PadPainterFrame('PadPainter')
         frame.Show(True)
         return True
 
