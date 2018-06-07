@@ -64,32 +64,42 @@ class DnDFilePickerCtrl(FBB.FileBrowseButtonWithHistory, wx.FileDropTarget):
 class LabelledTextCtrl(wx.BoxSizer):
     '''Text-entry box with a label.'''
 
-    def __init__(self, parent, label, value):
+    def __init__(self, parent, label, value, tooltip=''):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
         self.lbl = wx.StaticText(parent=parent, label=label)
-        self.ctrl = wx.TextCtrl(parent=parent, value=value, style=wx.TE_PROCESS_ENTER)
+        self.ctrl = wx.TextCtrl(
+            parent=parent, value=value, style=wx.TE_PROCESS_ENTER)
+        self.ctrl.SetToolTip(wx.ToolTip(tooltip))
         self.AddSpacer(WIDGET_SPACING)
         self.Add(self.lbl, 0, wx.ALL | wx.ALIGN_CENTER)
         self.AddSpacer(WIDGET_SPACING)
         self.Add(self.ctrl, 1, wx.ALL | wx.EXPAND)
         self.AddSpacer(WIDGET_SPACING)
 
+
 class LabelledListBox(wx.BoxSizer):
     '''ListBox with label.'''
 
-    def __init__(self, parent, label, choices):
+    def __init__(self, parent, label, choices, tooltip=''):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
         self.lbl = wx.StaticText(parent=parent, label=label)
-        self.lbx = wx.ListBox(parent=parent, choices=choices, style=wx.LB_EXTENDED|wx.LB_NEEDED_SB|wx.LB_SORT, size=wx.Size(1,50))
+        self.lbx = wx.ListBox(
+            parent=parent,
+            choices=choices,
+            style=wx.LB_EXTENDED | wx.LB_NEEDED_SB | wx.LB_SORT,
+            size=wx.Size(1, 50))
+        self.lbx.SetToolTip(wx.ToolTip(tooltip))
         self.AddSpacer(WIDGET_SPACING)
         self.Add(self.lbl, 0, wx.ALL | wx.ALIGN_TOP)
         self.AddSpacer(WIDGET_SPACING)
         self.Add(self.lbx, 1, wx.ALL | wx.EXPAND)
         self.AddSpacer(WIDGET_SPACING)
 
+
 class Part(object):
     '''Object for storing part symbol data.'''
     pass
+
 
 class Pin(object):
     '''Object for storing pin data.'''
@@ -110,10 +120,7 @@ def get_parts_from_netlist(netlist_file):
         default_home = os.path.expanduser(r'~\AppData\Roaming\kicad')
     else:
         default_home = os.path.expanduser(r'~/.config/kicad')
-    dirs = [
-        os.environ.get('KICAD_CONFIG_HOME', default_home),
-        brd_dir
-    ]
+    dirs = [os.environ.get('KICAD_CONFIG_HOME', default_home), brd_dir]
     for dir in dirs:
         sym_lib_tbl_file = os.path.join(dir, 'sym-lib-table')
         if os.path.isfile(sym_lib_tbl_file):
@@ -138,7 +145,7 @@ def get_parts_from_netlist(netlist_file):
     # Add any cache or rescue libraries in the PCB directory.
     for lib_type in ['-cache', '-rescue']:
         lib_name = brd_name + lib_type
-        file_name = os.path.join(brd_dir,lib_name+'.lib')
+        file_name = os.path.join(brd_dir, lib_name + '.lib')
         if os.path.isfile(file_name):
             sym_lib_files[lib_name.lower()] = file_name
 
@@ -206,7 +213,7 @@ def get_part_info_from_lib(ref, parts):
                 continue
 
             #part_found = re.search(r'^DEF\s+'+part+r'\s+', line)
-            part_found = line.startswith('DEF '+part.part+' ')
+            part_found = line.startswith('DEF ' + part.part + ' ')
 
 
 def guess_netlist_file():
@@ -226,17 +233,6 @@ class PadPainterFrame(wx.Frame):
 
         wx.Frame.__init__(self, None, title=title, pos=(150, 150))
 
-        # menu_bar = wx.MenuBar()
-        # menu = wx.Menu()
-
-        # menu.Append(wx.ID_EXIT, 'E&xit\tAlt-X', 'Exit')
-        # self.Bind(wx.EVT_MENU, self.OnTimeToClose, id=wx.ID_EXIT)
-
-        # menu_bar.Append(menu, '&File')
-        # self.SetMenuBar(menu_bar)
-
-        # self.CreateStatusBar()
-
         # Main panel holding all the widgets.
         panel = wx.Panel(parent=self)
 
@@ -252,7 +248,8 @@ class PadPainterFrame(wx.Frame):
             initialValue=guess_netlist_file(),
             fileMask=netlist_file_wildcard,
             fileMode=wx.FD_OPEN)
-        self.Bind(wx.EVT_FILEPICKER_CHANGED, self.UpdateUnits, self.netlist_file_picker)
+        self.Bind(wx.EVT_FILEPICKER_CHANGED, self.UpdateUnits,
+                  self.netlist_file_picker)
 
         # Widget for specifying which parts to paint. It starts off preloaded
         # with any parts that have already been selected in the PCBNEW layout.
@@ -260,26 +257,44 @@ class PadPainterFrame(wx.Frame):
             p.GetReference() for p in GetBoard().GetModules()
             if p.IsSelected()
         ])
-        self.part_refs = LabelledTextCtrl(parent=panel, label='Parts:', value=selected_parts)
+        self.part_refs = LabelledTextCtrl(
+            parent=panel,
+            label='Parts:',
+            value=selected_parts,
+            tooltip=
+            "Enter a single part reference or multiple, comma-separated references to paint. Then press 'ENTER'."
+        )
         self.Bind(wx.EVT_TEXT_ENTER, self.UpdateUnits, self.part_refs.ctrl)
 
         # Widget for specifying the units in the parts that will be painted.
-        self.units = LabelledListBox(parent=panel, label='Units:', choices=[])
+        self.units = LabelledListBox(
+            parent=panel,
+            label='Units:',
+            choices=[],
+            tooltip=
+            "Select one or more units in the part to paint.\n(Use shift-click and ctrl-click to select multiple units.)"
+        )
 
         # Widget for specifying the pin numbers in the parts that will be painted.
         self.nums = LabelledTextCtrl(
-            parent=panel, label='Pin Numbers:', value='.*')
+            parent=panel,
+            label='Pin Numbers:',
+            value='.*',
+            tooltip="Enter regular expression to select pin numbers to paint.")
 
         # Widget for specifying the pin names in the parts that will be painted.
         self.names = LabelledTextCtrl(
-            parent=panel, label='Pin Names:', value='.*')
+            parent=panel,
+            label='Pin Names:',
+            value='.*',
+            tooltip="Enter regular expression to select pin names to paint.")
 
         # Checkboxes for selecting which types of pins will be painted.
         self.pin_func_btn_lbls = {
-            'In': 'I', 
-            'Out': 'O', 
-            'I/O': 'B', 
-            '3-State': 'T', 
+            'In': 'I',
+            'Out': 'O',
+            'I/O': 'B',
+            '3-State': 'T',
             'Pwr': 'W',
             'Pwr Out': 'w',
             'Passive': 'P',
@@ -295,19 +310,33 @@ class PadPainterFrame(wx.Frame):
         for btn_lbl in self.pin_func_btns:
             self.pin_func_btns[btn_lbl].SetLabel(btn_lbl)
             self.pin_func_btns[btn_lbl].SetValue(True)
+            self.pin_func_btns[btn_lbl].SetToolTip(
+                wx.ToolTip(
+                    "Check to enable painting of pins of this functional type."
+                ))
 
         # Add extra checkboxes for checking all or none of the pin function checkboxes.
         self.all_ckbx = wx.CheckBox(panel, label='All')  # Check all the boxes.
+        self.all_ckbx.SetToolTip(
+            wx.ToolTip("Check to enable painting of all pin types."))
         self.none_ckbx = wx.CheckBox(
             panel, label='None')  # Uncheck all the boxes.
+        self.none_ckbx.SetToolTip(
+            wx.ToolTip("Check to disable painting of all pin types."))
         self.Bind(wx.EVT_CHECKBOX,
                   self.HandlePinFuncBtns)  # Function to handle the checkboxes.
         self.UpdateAllNoneBtns()
 
         # Action buttons for painting and clearing the selected pads.
         self.paint_btn = wx.Button(panel, -1, 'Paint')
+        self.paint_btn.SetToolTip(
+            wx.ToolTip('Click to paint selected pads on the PCB.'))
         self.clear_btn = wx.Button(panel, -1, 'Clear')
+        self.clear_btn.SetToolTip(
+            wx.ToolTip('Click to erase paint from selected pads on the PCB.'))
         self.done_btn = wx.Button(panel, -1, 'Done')
+        self.done_btn.SetToolTip(
+            wx.ToolTip('Click when finished. Any painted pads will remain.'))
         self.Bind(wx.EVT_BUTTON, self.OnPaint, self.paint_btn)
         self.Bind(wx.EVT_BUTTON, self.OnClear, self.clear_btn)
         self.Bind(wx.EVT_BUTTON, self.OnDone, self.done_btn)
@@ -315,34 +344,46 @@ class PadPainterFrame(wx.Frame):
         # Create a horizontal sizer for holding all the pin-function checkboxes.
         pin_func_sizer = wx.BoxSizer(wx.HORIZONTAL)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(wx.StaticText(panel, label='Pin Functions:'),
+        pin_func_sizer.Add(
+            wx.StaticText(panel, label='Pin Functions:'),
             flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
         pin_func_sizer.Add(self.all_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
         pin_func_sizer.Add(self.none_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(5 * WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['In'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['In'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['Out'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['Out'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['I/O'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['I/O'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['Pwr'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['Pwr'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['Pwr Out'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['Pwr Out'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['3-State'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['3-State'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['OpenColl'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['OpenColl'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['OpenEmit'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['OpenEmit'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['Passive'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['Passive'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['Unspec'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['Unspec'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.pin_func_btns['NC'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_func_sizer.Add(
+            self.pin_func_btns['NC'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
 
         # Create a horizontal sizer for holding the action buttons.
@@ -357,7 +398,8 @@ class PadPainterFrame(wx.Frame):
 
         # Create a vertical sizer to hold everything in the panel.
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
+        sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
+                  WIDGET_SPACING)
         sizer.Add(self.part_refs, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.units, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.nums, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
@@ -374,9 +416,12 @@ class PadPainterFrame(wx.Frame):
         self.Fit()
 
     def UpdateUnits(self, evt):
-        '''Update the list of part units.'''
+        '''Update the list of part units from the selected parts.'''
+
         self.parts = get_parts_from_netlist(self.netlist_file_picker.GetPath())
-        part_refs = [p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p]
+        part_refs = [
+            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
+        ]
         for ref in part_refs:
             get_part_info_from_lib(ref, self.parts)
 
@@ -385,18 +430,31 @@ class PadPainterFrame(wx.Frame):
             units |= self.parts[ref].units
 
         self.units.lbx.Clear()
-        self.units.lbx.InsertItems(list(units),0)
+        self.units.lbx.InsertItems(list(units), 0)
         for i in range(self.units.lbx.GetCount()):
             self.units.lbx.SetSelection(i)
 
-
     def SelectPads(self):
+        '''Return a list of PCB pads that meet the selection criteria set in the GUI.'''
+
+        # Get the criteria for selecting pads.
+        # Create a list of selected part units.
         lbx = self.units.lbx
         selected_units = [lbx.GetString(i) for i in lbx.GetSelections()]
+        # Get the regular expressions for selecting pad numbers and names.
         num_re = self.nums.ctrl.GetValue()
         name_re = self.names.ctrl.GetValue()
-        part_refs = [p.strip() for p in self.part_refs.ctrl.GetValue().split(',')]
-        selected_pin_funcs = [self.pin_func_btn_lbls[btn.GetLabel()] for btn in self.pin_func_btns.values() if btn.GetValue()]
+        # Create a list of selected part references.
+        part_refs = [
+            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
+        ]
+        # Create a list of enabled pin functions.
+        selected_pin_funcs = [
+            self.pin_func_btn_lbls[btn.GetLabel()]
+            for btn in self.pin_func_btns.values() if btn.GetValue()
+        ]
+
+        # Go through the pads and select those that meet the criteria.
         selected_pads = []
         for part in GetBoard().GetModules():
             ref = part.GetReference()
@@ -408,8 +466,12 @@ class PadPainterFrame(wx.Frame):
                 continue
             for pad in part.Pads():
                 pin = symbol.pins[pad.GetName()]
-                if pin.unit in selected_units and re.search(num_re, pin.num) and re.search(name_re, pin.name) and pin.func in selected_pin_funcs:
+                if (pin.unit in selected_units and re.search(num_re, pin.num)
+                        and re.search(name_re, pin.name)
+                        and pin.func in selected_pin_funcs):
                     selected_pads.append(pad)
+
+        # Return the selected pads.
         return selected_pads
 
     def OnPaint(self, evt):
@@ -429,6 +491,8 @@ class PadPainterFrame(wx.Frame):
         self.Close()
 
     def UpdateAllNoneBtns(self):
+        '''Update the All and None boxes based on the settings of the other boxes.'''
+
         # Get the checked/unchecked status of all the pin function boxes.
         btn_values = [btn.GetValue() for btn in self.pin_func_btns.values()]
 
@@ -464,6 +528,7 @@ class PadPainterFrame(wx.Frame):
                     cb.SetValue(False)
 
         self.UpdateAllNoneBtns()
+
 
 class PadPainter(ActionPlugin):
     def defaults(self):
