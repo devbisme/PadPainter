@@ -51,11 +51,11 @@ After entering the part IDs, make sure to press the ENTER key.
 This signals PadPainter that it should look-up the information on the given 
 parts.
 
-#### Units Field
+### Units Field
 
 This field lists the names of the units found in the parts specified in the 
 `Parts` field. (Most high pin-count parts are broken up into multiple units, 
-each of which provides some specific function.) Highlighting one or more of 
+each of which provides some specific function.) Selecting one or more of 
 the units in this field will restrict the highlighting of pads to those 
 specific units. (Use shift-click to select a range of units, or ctrl-click 
 to select multiple, non-contiguous list entries.)
@@ -104,8 +104,8 @@ on the given parts which:
  
 Then PadPainter will either add or clear the highlighting to the extracted pads.
 
-Pressing the `Done` button will terminate PadPainter. Note that this will 
-not return any highlighted pads to the original state; they will remain 
+Pressing the `Done` button will terminate PadPainter. This will 
+not return any highlighted pads to their original state; they will remain 
 highlighted. This is essential behavior for marking pins and then doing 
 placement and routing based on the displayed information. It also allows you 
 to highlight parts and then come back later and highlight further parts 
