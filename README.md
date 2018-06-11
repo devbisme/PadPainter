@@ -95,7 +95,7 @@ all the pin function filters.
 ### Pin State
 
 These checkboxes are used to select pins which are connected or unconnected to nets.
-For example, checking the `Unconnected` box will only highlights pins that are
+For example, checking the `Unconnected` box will only highlight pins that are
 not currently connected to anything.
 
 ### Action Buttons
