@@ -295,7 +295,7 @@ class PadPainterFrame(wx.Frame):
             value='.*',
             tooltip="Enter regular expression to select pin names to paint.")
 
-        # Checkboxes for selecting which types of pins will be painted.
+        # Checkboxes for selecting which functional types of pins will be painted.
         self.pin_func_btn_lbls = {
             'In': 'I',
             'Out': 'O',
@@ -313,25 +313,42 @@ class PadPainterFrame(wx.Frame):
             lbl: wx.CheckBox(panel, label=lbl)
             for lbl in self.pin_func_btn_lbls
         }
-        for btn_lbl in self.pin_func_btns:
-            self.pin_func_btns[btn_lbl].SetLabel(btn_lbl)
-            self.pin_func_btns[btn_lbl].SetValue(True)
-            self.pin_func_btns[btn_lbl].SetToolTip(
-                wx.ToolTip(
-                    "Check to enable painting of pins of this functional type."
+        for btn_lbl, btn in self.pin_func_btns.items():
+            btn.SetLabel(btn_lbl)
+            btn.SetValue(True)
+            btn.SetToolTip(wx.ToolTip(
+                    "Check to enable painting of pins of functional type {}.".format(btn_lbl.lower())
                 ))
+            self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, btn)
 
         # Add extra checkboxes for checking all or none of the pin function checkboxes.
         self.all_ckbx = wx.CheckBox(panel, label='All')  # Check all the boxes.
         self.all_ckbx.SetToolTip(
-            wx.ToolTip("Check to enable painting of all pin types."))
+            wx.ToolTip("Check to enable painting of all functional pin types."))
+        self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, self.all_ckbx)
         self.none_ckbx = wx.CheckBox(
             panel, label='None')  # Uncheck all the boxes.
         self.none_ckbx.SetToolTip(
-            wx.ToolTip("Check to disable painting of all pin types."))
-        self.Bind(wx.EVT_CHECKBOX,
-                  self.HandlePinFuncBtns)  # Function to handle the checkboxes.
+            wx.ToolTip("Check to disable painting of all functional pin types."))
+        self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, self.none_ckbx)
         self.UpdateAllNoneBtns()
+
+        # Checkboxes for selecting the state of the pins.
+        self.pin_state_btn_lbls = {
+            'Connected': 'C',
+            'Unconnected': 'U',
+        }
+        self.pin_state_btns = {
+            lbl: wx.CheckBox(panel, label=lbl)
+            for lbl in self.pin_state_btn_lbls
+        }
+        for btn_lbl, btn in self.pin_state_btns.items():
+            btn.SetLabel(btn_lbl)
+            btn.SetValue(True)
+            btn.SetToolTip(wx.ToolTip(
+                    "Check to enable painting of pins that are {} to nets.".format(btn_lbl.lower())
+                ))
+            self.Bind(wx.EVT_CHECKBOX, self.HandlePinStateBtns, btn)
 
         # Action buttons for painting and clearing the selected pads.
         self.paint_btn = wx.Button(panel, -1, 'Paint')
@@ -392,6 +409,20 @@ class PadPainterFrame(wx.Frame):
             self.pin_func_btns['NC'], flag=wx.ALL | wx.ALIGN_CENTER)
         pin_func_sizer.AddSpacer(WIDGET_SPACING)
 
+        # Create a horizontal sizer for holding all the pin-state checkboxes.
+        pin_state_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        pin_state_sizer.AddSpacer(WIDGET_SPACING)
+        pin_state_sizer.Add(
+            wx.StaticText(panel, label='Pin State:'),
+            flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_state_sizer.AddSpacer(WIDGET_SPACING)
+        pin_state_sizer.Add(
+            self.pin_state_btns['Connected'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_state_sizer.AddSpacer(WIDGET_SPACING)
+        pin_state_sizer.Add(
+            self.pin_state_btns['Unconnected'], flag=wx.ALL | wx.ALIGN_CENTER)
+        pin_state_sizer.AddSpacer(WIDGET_SPACING)
+
         # Create a horizontal sizer for holding the action buttons.
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddSpacer(WIDGET_SPACING)
@@ -411,6 +442,7 @@ class PadPainterFrame(wx.Frame):
         sizer.Add(self.nums, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.names, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
+        sizer.Add(pin_state_sizer, 0, wx.ALL, WIDGET_SPACING)
         sizer.Add(btn_sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
 
         # Size the panel.
@@ -459,6 +491,11 @@ class PadPainterFrame(wx.Frame):
             self.pin_func_btn_lbls[btn.GetLabel()]
             for btn in self.pin_func_btns.values() if btn.GetValue()
         ]
+        # Create a list of enabled pin states.
+        selected_pin_states = [
+            self.pin_state_btn_lbls[btn.GetLabel()]
+            for btn in self.pin_state_btns.values() if btn.GetValue()
+        ]
 
         # Go through the pads and select those that meet the criteria.
         selected_pads = []
@@ -474,13 +511,18 @@ class PadPainterFrame(wx.Frame):
                 for pad in part.Pads():
                     try:
                         pin = symbol.pins[pad.GetName()]
+                        if pad.GetNet().GetNetname().strip() == '':
+                            pin.state = 'U'
+                        else:
+                            pin.state = 'C'
                     except KeyError:
                         # This usually happens when the footprint has a mounting
                         # hole that's not associated with a pin in the electrical symbol.
                         continue
                     if (pin.unit in selected_units and re.search(num_re, pin.num)
                             and re.search(name_re, pin.name)
-                            and pin.func in selected_pin_funcs):
+                            and pin.func in selected_pin_funcs
+                            and pin.state in selected_pin_states):
                         selected_pads.append(pad)
         except Exception as e:
             debug_dialog('Something went wrong while selecting pads: '+repr(e))
@@ -542,6 +584,11 @@ class PadPainterFrame(wx.Frame):
                     cb.SetValue(False)
 
         self.UpdateAllNoneBtns()
+
+    def HandlePinStateBtns(self, evt):
+        '''Handle checking/unchecking of pin state checkboxes.'''
+
+        
 
 
 class PadPainter(ActionPlugin):
