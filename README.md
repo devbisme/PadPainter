@@ -92,6 +92,12 @@ highlights bidirectional pins.)
 `All` and `None` checkboxes are also provided to quickly enable or disable 
 all the pin function filters.
 
+### Pin State
+
+These checkboxes are used to select pins which are connected or unconnected to nets.
+For example, checking the `Unconnected` box will only highlights pins that are
+not currently connected to anything.
+
 ### Action Buttons
 
 Upon pressing the `Paint` or `Clear` button, PadPainter will extract all the pads
@@ -101,6 +107,7 @@ on the given parts which:
 * Have pin numbers that match with the REGEX in the `Pin Numbers` field.
 * Have pin names that match with the REGEX in the `Pin Names` field.
 * Have electrical functions that match one of the checked types in the `Pin Functions` checkboxes.
+* Are connected or unconnected to nets as indicated by the `Pin State` checkboxes.
  
 Then PadPainter will either add or clear the highlighting to the extracted pads.
 
