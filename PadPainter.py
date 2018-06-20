@@ -254,7 +254,7 @@ def guess_netlist_file():
     netlist_file_name = design_name + '.net'
     if os.path.isfile(netlist_file_name):
         return netlist_file_name
-    return None
+    return ''
 
 
 class PadPainterFrame(wx.Frame):
