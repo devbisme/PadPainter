@@ -31,10 +31,14 @@ import re
 import wx
 import wx.lib.filebrowsebutton as FBB
 
+import traceback
+
 WIDGET_SPACING = 5
 
 
-def debug_dialog(msg):
+def debug_dialog(msg, exception=None):
+    if exception:
+        msg = '\n'.join((msg, str(exception), traceback.format.exc()))
     dlg = wx.MessageDialog(None, msg, '', wx.OK)
     dlg.ShowModal()
     dlg.Destroy()
@@ -187,7 +191,7 @@ def get_parts_from_netlist(netlist_file):
             srch_result = re.search(comp_ref_re, line)
             if srch_result:
                 ref = srch_result.group(1)
-                parts[ref] = None
+                parts[ref] = None  # Create a dict entry to hold the part.
                 continue  # Reference found, so continue with next line.
 
             # Search for symbol library associated with the part reference.
@@ -196,6 +200,7 @@ def get_parts_from_netlist(netlist_file):
                 part = Part()
                 part.lib = srch_result.group(1).lower()
                 part.part = srch_result.group(2)
+                part.ref = ref
                 parts[ref] = part
                 continue  # Library found, so continue with next line.
 
@@ -213,11 +218,16 @@ def fillin_part_info_from_lib(ref, parts):
     try:
         part = parts[ref]
     except Exception:
-        debug_dialog(ref + 'was not found in the netlist!')
-        raise Exception(ref + 'was not found in the netlist!')
+        debug_dialog(ref + ' was not found in the netlist!')
+        raise Exception(ref + ' was not found in the netlist!')
 
     part.pins = {}  # Store part's pin information here.
     part.units = set()  # Store list of part's units here.
+
+    # Abort with empty pins and units if the part's library file was not found.
+    if not part.lib_file:
+        debug_dialog('Part {} uses library {} that is not in the sym-lib-table file'.format(part.ref, part.lib))
+        return
 
     # Find the part in the library and get the info for each pin.
     with open(part.lib_file, 'r') as fp:
@@ -244,6 +254,11 @@ def fillin_part_info_from_lib(ref, parts):
             # Look for the start of the desired part's definition.
             part_found = (re.search(r'^DEF\s+' + part.part + r'\s+', line) or
                 re.search(r'^ALIAS\s+([^\s]+\s+)*' + part.part + r'\s+', line))
+
+
+def get_project_directory():
+    '''Return the path of the PCB directory.'''
+    return os.path.dirname(GetBoard().GetFileName())
 
 
 def guess_netlist_file():
@@ -275,6 +290,7 @@ class PadPainterFrame(wx.Frame):
             toolTip=
             'Drag-and-drop netlist file associated with this layout or browse for file or enter file name.',
             dialogTitle='Select netlist file associated with this layout',
+            startDirectory=get_project_directory(),
             initialValue=guess_netlist_file(),
             fileMask=netlist_file_wildcard,
             fileMode=wx.FD_OPEN)
@@ -549,7 +565,7 @@ class PadPainterFrame(wx.Frame):
                             and pin.state in selected_pin_states):
                         selected_pads.append(pad)
         except Exception as e:
-            debug_dialog('Something went wrong while selecting pads: '+repr(e))
+            debug_dialog('Something went wrong while selecting pads!', e)
 
         # Return the selected pads.
         return selected_pads
