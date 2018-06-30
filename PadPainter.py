@@ -271,6 +271,49 @@ def guess_netlist_file():
         return netlist_file_name
     return ''
 
+class menuSelection( wx.Menu ):
+    ''' @brief Menu of the distributor checkbox list. Provide select all, unselect and toggle hotkey.
+        @param TextBox handle.
+    '''
+    def __init__( self, parent ):
+        ''' @brief Constructor.'''
+        super(menuSelection, self).__init__()
+        self.list = parent
+        
+        mmi = wx.MenuItem(self, wx.NewId(), 'Select &all')
+        self.Append(mmi)
+        self.Bind(wx.EVT_MENU, self.selectAll, mmi)
+        
+        mmi = wx.MenuItem(self, wx.NewId(), '&Unselect all')
+        self.Append(mmi)
+        self.Bind(wx.EVT_MENU, self.unselectAll, mmi)
+        
+        mmi = wx.MenuItem(self, wx.NewId(), '&Toggle')
+        self.Append(mmi)
+        self.Bind(wx.EVT_MENU, self.toggleAll, mmi)
+    
+    def selectAll( self, event ):
+        ''' @brief Select all distributor that exist.'''
+        event.Skip()
+        for idx in range(self.list.GetCount()):
+            if not self.list.IsChecked(idx):
+                self.list.Check(idx)
+    
+    def unselectAll( self, event ):
+        ''' @brief Unselect all distributor that exist.'''
+        event.Skip()
+        for idx in range(self.list.GetCount()):
+            if self.list.IsChecked(idx):
+                self.list.Check(idx, False)
+    
+    def toggleAll( self, event ):
+        ''' @brief Toggle all distributor that exist.'''
+        event.Skip()
+        for idx in range(self.list.GetCount()):
+            if self.list.IsChecked(idx):
+                self.list.Check(idx, False)
+            else:
+                self.list.Check(idx)
 
 class PadPainterFrame(wx.Frame):
     def __init__(self, title):
@@ -282,7 +325,7 @@ class PadPainterFrame(wx.Frame):
         panel = wx.Panel(parent=self)
 
         # File browser widget for getting netlist file for this layout.
-        netlist_file_wildcard = 'Netlist File|*.net|All Files|*.*'
+        netlist_file_wildcard = 'Netlist File (*.net)|*.net|All Files|*.*'
         self.netlist_file_picker = DnDFilePickerCtrl(
             parent=panel,
             labelText='Netlist File:',
@@ -349,29 +392,13 @@ class PadPainterFrame(wx.Frame):
             'OpenEmit': 'E',
             'NC': 'N',
         }
-        self.pin_func_btns = {
-            lbl: wx.CheckBox(panel, label=lbl)
-            for lbl in self.pin_func_btn_lbls
-        }
-        for btn_lbl, btn in self.pin_func_btns.items():
-            btn.SetLabel(btn_lbl)
-            btn.SetValue(True)
-            btn.SetToolTip(wx.ToolTip(
-                    "Check to enable painting of pins of functional type {}.".format(btn_lbl.lower())
-                ))
-            self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, btn)
-
-        # Add extra checkboxes for checking all or none of the pin function checkboxes.
-        self.all_ckbx = wx.CheckBox(panel, label='All')  # Check all the boxes.
-        self.all_ckbx.SetToolTip(
-            wx.ToolTip("Check to enable painting of all functional pin types."))
-        self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, self.all_ckbx)
-        self.none_ckbx = wx.CheckBox(
-            panel, label='None')  # Uncheck all the boxes.
-        self.none_ckbx.SetToolTip(
-            wx.ToolTip("Check to disable painting of all functional pin types."))
-        self.Bind(wx.EVT_CHECKBOX, self.HandlePinFuncBtns, self.none_ckbx)
-        self.UpdateAllNoneBtns()
+        pin_func_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, wx.ID_ANY, u"Pin Functions:"), wx.VERTICAL)
+        self.pin_func_list = wx.CheckListBox(panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, sorted(list(self.pin_func_btn_lbls)), 0)
+        self.pin_func_list.SetToolTip(wx.ToolTip(u"Check to disable painting of all functional pin types.\nClick rigth to (un)selection all." ))
+        for item in range(self.pin_func_list.GetCount()):
+            self.pin_func_list.Check(item)
+        self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
+        pin_func_sizer.Add(self.pin_func_list, 0, wx.ALL, 5 )
 
         # Checkboxes for selecting the state of the pins.
         self.pin_state_btn_lbls = {
@@ -404,51 +431,6 @@ class PadPainterFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.OnClear, self.clear_btn)
         self.Bind(wx.EVT_BUTTON, self.OnDone, self.done_btn)
 
-        # Create a horizontal sizer for holding all the pin-function checkboxes.
-        pin_func_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            wx.StaticText(panel, label='Pin Functions:'),
-            flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.all_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(self.none_ckbx, flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(5 * WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['In'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['Out'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['I/O'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['Pwr'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['Pwr Out'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['3-State'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['OpenColl'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['OpenEmit'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['Passive'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['Unspec'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-        pin_func_sizer.Add(
-            self.pin_func_btns['NC'], flag=wx.ALL | wx.ALIGN_CENTER)
-        pin_func_sizer.AddSpacer(WIDGET_SPACING)
-
         # Create a horizontal sizer for holding all the pin-state checkboxes.
         pin_state_sizer = wx.BoxSizer(wx.HORIZONTAL)
         pin_state_sizer.AddSpacer(WIDGET_SPACING)
@@ -473,7 +455,7 @@ class PadPainterFrame(wx.Frame):
         btn_sizer.Add(self.done_btn, flag=wx.ALL | wx.ALIGN_CENTER)
         btn_sizer.AddSpacer(WIDGET_SPACING)
 
-        # Create a vertical sizer to hold everything in the panel.
+        # Create a vertical sizer to hold almost everything in the panel.
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
                   WIDGET_SPACING)
@@ -481,17 +463,26 @@ class PadPainterFrame(wx.Frame):
         sizer.Add(self.units, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.nums, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.names, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
-        sizer.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
         sizer.Add(pin_state_sizer, 0, wx.ALL, WIDGET_SPACING)
         sizer.Add(btn_sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
 
+        # Create a horizontal sizer to hol the vertical sizer above and the pin types.
+        sizer0 = wx.BoxSizer(wx.HORIZONTAL)
+        sizer0.Add(sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
+        sizer0.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
+
         # Size the panel.
-        panel.SetSizer(sizer)
+        panel.SetSizer(sizer0)
         panel.Layout()
         panel.Fit()
 
         # Finally, size the frame that holds the panel.
         self.Fit()
+
+    def pin_func_list_rClick( self, event ):
+        ''' Open the context menu with distributors options.'''
+        #event.Skip()
+        self.PopupMenu(menuSelection(self.pin_func_list), event.GetPosition())
 
     def UpdateUnits(self, evt):
         '''Update the list of part units from the selected parts.'''
@@ -516,20 +507,20 @@ class PadPainterFrame(wx.Frame):
         '''Return a list of PCB pads that meet the selection criteria set in the GUI.'''
 
         # Get the criteria for selecting pads.
+        # Create a list of selected part references.
+        part_refs = [
+            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
+        ]
         # Create a list of selected part units.
         lbx = self.units.lbx
         selected_units = [lbx.GetString(i) for i in lbx.GetSelections()]
         # Get the regular expressions for selecting pad numbers and names.
         num_re = self.nums.ctrl.GetValue()
         name_re = self.names.ctrl.GetValue()
-        # Create a list of selected part references.
-        part_refs = [
-            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
-        ]
         # Create a list of enabled pin functions.
         selected_pin_funcs = [
-            self.pin_func_btn_lbls[btn.GetLabel()]
-            for btn in self.pin_func_btns.values() if btn.GetValue()
+            self.pin_func_btn_lbls[self.pin_func_list.GetLabel(item)
+            for item in self.pin_func_list.GetCheckedItems()]
         ]
         # Create a list of enabled pin states.
         selected_pin_states = [
@@ -585,45 +576,6 @@ class PadPainterFrame(wx.Frame):
     def OnDone(self, evt):
         '''Close GUI when Done button is clicked.'''
         self.Close()
-
-    def UpdateAllNoneBtns(self):
-        '''Update the All and None boxes based on the settings of the other boxes.'''
-
-        # Get the checked/unchecked status of all the pin function boxes.
-        btn_values = [btn.GetValue() for btn in self.pin_func_btns.values()]
-
-        # Update the All and None checkboxes based on the state of the
-        # pin function checkboxes:
-        # 1) If all the boxes are checked, then check the All checkbox.
-        # 2) If none of the boxes are checked, then check the None checkbox.
-        # 3) Otherwise, uncheck both the All and None checkboxes.
-        if all(btn_values):
-            self.all_ckbx.SetValue(True)
-            self.none_ckbx.SetValue(False)
-        elif not any(btn_values):
-            self.all_ckbx.SetValue(False)
-            self.none_ckbx.SetValue(True)
-        else:
-            self.all_ckbx.SetValue(False)
-            self.none_ckbx.SetValue(False)
-
-    def HandlePinFuncBtns(self, evt):
-        '''Handle checking/unchecking of pin function checkboxes.'''
-
-        ckbx = evt.GetEventObject()  # Get the checkbox that was clicked.
-
-        # If the All box was checked, then check all the pin function boxes.
-        # But if the None box was checked, then uncheck all the pin function boxes.
-        if ckbx is self.all_ckbx:
-            if self.all_ckbx.GetValue():
-                for cb in self.pin_func_btns.values():
-                    cb.SetValue(True)
-        elif ckbx is self.none_ckbx:
-            if self.none_ckbx.GetValue():
-                for cb in self.pin_func_btns.values():
-                    cb.SetValue(False)
-
-        self.UpdateAllNoneBtns()
 
     def HandlePinStateBtns(self, evt):
         '''Handle checking/unchecking of pin state checkboxes.'''
