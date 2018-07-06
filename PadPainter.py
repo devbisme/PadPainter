@@ -443,8 +443,6 @@ class PadPainterFrame(wx.Frame):
 
         # Create a vertical sizer to hold everything in the panel.
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
-                  WIDGET_SPACING)
         sizer.Add(self.part_refs, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.units, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
         sizer.Add(self.nums, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
@@ -457,8 +455,14 @@ class PadPainterFrame(wx.Frame):
         sizer0.Add(sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
         sizer0.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
 
+        # Create the main vertical sizer.
+        sizer00 = wx.BoxSizer(wx.VERTICAL)
+        sizer00.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
+                  WIDGET_SPACING)
+        sizer00.Add(sizer0, 0, wx.ALL | wx.EXPAND, WIDGET_SPACING)
+
         # Size the panel.
-        panel.SetSizer(sizer0)
+        panel.SetSizer(sizer00)
         panel.Layout()
         panel.Fit()
 
