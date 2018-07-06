@@ -22,11 +22,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from pcbnew import *
+from pcbnew import * # Pcbnew-KiCad library channel.
 
-import sys
-import os
-import os.path
+import sys, os, os.path # OS and directories.
 import re
 import wx
 import wx.lib.filebrowsebutton as FBB
@@ -271,6 +269,7 @@ def guess_netlist_file():
         return netlist_file_name
     return ''
 
+
 class menuSelection( wx.Menu ):
     ''' @brief Menu of the distributor checkbox list. Provide select all, unselect and toggle hotkey.
         @param TextBox handle.
@@ -298,22 +297,7 @@ class menuSelection( wx.Menu ):
         for idx in range(self.list.GetCount()):
             if not self.list.IsChecked(idx):
                 self.list.Check(idx)
-    
-    def unselectAll( self, event ):
-        ''' @brief Unselect all distributor that exist.'''
-        event.Skip()
-        for idx in range(self.list.GetCount()):
-            if self.list.IsChecked(idx):
-                self.list.Check(idx, False)
-    
-    def toggleAll( self, event ):
-        ''' @brief Toggle all distributor that exist.'''
-        event.Skip()
-        for idx in range(self.list.GetCount()):
-            if self.list.IsChecked(idx):
-                self.list.Check(idx, False)
-            else:
-                self.list.Check(idx)
+
 
 class PadPainterFrame(wx.Frame):
     def __init__(self, title):
@@ -325,7 +309,7 @@ class PadPainterFrame(wx.Frame):
         panel = wx.Panel(parent=self)
 
         # File browser widget for getting netlist file for this layout.
-        netlist_file_wildcard = 'Netlist File (*.net)|*.net|All Files|*.*'
+        netlist_file_wildcard = 'Netlist File|*.net|All Files|*.*'
         self.netlist_file_picker = DnDFilePickerCtrl(
             parent=panel,
             labelText='Netlist File:',
@@ -396,9 +380,11 @@ class PadPainterFrame(wx.Frame):
         self.pin_func_list = wx.CheckListBox(panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, sorted(list(self.pin_func_btn_lbls)), 0)
         self.pin_func_list.SetToolTip(wx.ToolTip(u"Check to disable painting of all functional pin types.\nClick rigth to (un)selection all." ))
         for item in range(self.pin_func_list.GetCount()):
-            self.pin_func_list.Check(item)
-        self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
+            self.pin_func_list.Check(item) # Start with all checked.
+        #self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick, self.pin_func_list)
         pin_func_sizer.Add(self.pin_func_list, 0, wx.ALL, 5 )
+
 
         # Checkboxes for selecting the state of the pins.
         self.pin_state_btn_lbls = {
@@ -455,7 +441,7 @@ class PadPainterFrame(wx.Frame):
         btn_sizer.Add(self.done_btn, flag=wx.ALL | wx.ALIGN_CENTER)
         btn_sizer.AddSpacer(WIDGET_SPACING)
 
-        # Create a vertical sizer to hold almost everything in the panel.
+        # Create a vertical sizer to hold everything in the panel.
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.netlist_file_picker, 0, wx.ALL | wx.EXPAND,
                   WIDGET_SPACING)
@@ -466,7 +452,7 @@ class PadPainterFrame(wx.Frame):
         sizer.Add(pin_state_sizer, 0, wx.ALL, WIDGET_SPACING)
         sizer.Add(btn_sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
 
-        # Create a horizontal sizer to hol the vertical sizer above and the pin types.
+        # Create a horizontal sizer to hold the vertical sizer above and the pin types.
         sizer0 = wx.BoxSizer(wx.HORIZONTAL)
         sizer0.Add(sizer, 0, wx.ALL | wx.ALIGN_CENTER, WIDGET_SPACING)
         sizer0.Add(pin_func_sizer, 0, wx.ALL, WIDGET_SPACING)
@@ -481,7 +467,6 @@ class PadPainterFrame(wx.Frame):
 
     def pin_func_list_rClick( self, event ):
         ''' Open the context menu with distributors options.'''
-        #event.Skip()
         self.PopupMenu(menuSelection(self.pin_func_list), event.GetPosition())
 
     def UpdateUnits(self, evt):
@@ -507,20 +492,20 @@ class PadPainterFrame(wx.Frame):
         '''Return a list of PCB pads that meet the selection criteria set in the GUI.'''
 
         # Get the criteria for selecting pads.
-        # Create a list of selected part references.
-        part_refs = [
-            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
-        ]
         # Create a list of selected part units.
         lbx = self.units.lbx
         selected_units = [lbx.GetString(i) for i in lbx.GetSelections()]
         # Get the regular expressions for selecting pad numbers and names.
         num_re = self.nums.ctrl.GetValue()
         name_re = self.names.ctrl.GetValue()
+        # Create a list of selected part references.
+        part_refs = [
+            p.strip() for p in self.part_refs.ctrl.GetValue().split(',') if p
+        ]
         # Create a list of enabled pin functions.
         selected_pin_funcs = [
-            self.pin_func_btn_lbls[self.pin_func_list.GetLabel(item)
-            for item in self.pin_func_list.GetCheckedItems()]
+            self.pin_func_btn_lbls[btn.GetLabel()]
+            for btn in self.pin_func_btns.values() if btn.GetValue()
         ]
         # Create a list of enabled pin states.
         selected_pin_states = [
