@@ -278,15 +278,12 @@ class menuSelection( wx.Menu ):
         ''' @brief Constructor.'''
         super(menuSelection, self).__init__()
         self.list = parent
-        
         mmi = wx.MenuItem(self, wx.NewId(), 'Select &all')
         self.Append(mmi)
         self.Bind(wx.EVT_MENU, self.selectAll, mmi)
-        
         mmi = wx.MenuItem(self, wx.NewId(), '&Unselect all')
         self.Append(mmi)
         self.Bind(wx.EVT_MENU, self.unselectAll, mmi)
-        
         mmi = wx.MenuItem(self, wx.NewId(), '&Toggle')
         self.Append(mmi)
         self.Bind(wx.EVT_MENU, self.toggleAll, mmi)
@@ -296,6 +293,22 @@ class menuSelection( wx.Menu ):
         event.Skip()
         for idx in range(self.list.GetCount()):
             if not self.list.IsChecked(idx):
+                self.list.Check(idx)
+
+    def unselectAll( self, event ):
+        ''' @brief Unselect all distributor that exist.'''
+        event.Skip()
+        for idx in range(self.list.GetCount()):
+            if self.list.IsChecked(idx):
+                self.list.Check(idx, False)
+
+    def toggleAll( self, event ):
+        ''' @brief Toggle all distributor that exist.'''
+        event.Skip()
+        for idx in range(self.list.GetCount()):
+            if self.list.IsChecked(idx):
+                self.list.Check(idx, False)
+            else:
                 self.list.Check(idx)
 
 
