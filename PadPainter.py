@@ -484,7 +484,7 @@ class PadPainterFrame(wx.Frame):
 
     def pin_func_list_rClick( self, event ):
         ''' Open the context menu with distributors options.'''
-        self.PopupMenu(menuSelection(self.pin_func_list), event.GetPosition())
+        self.PopupMenu(menuSelection(self.pin_func_list), event.GetPosition()[0], event.GetPosition()[1])
 
     def UpdateUnits(self, evt):
         '''Update the list of part units from the selected parts.'''
