@@ -278,14 +278,14 @@ class menuSelection( wx.Menu ):
         ''' @brief Constructor.'''
         super(menuSelection, self).__init__()
         self.list = parent
-        mmi = wx.MenuItem(self, wx.NewId(), 'Select &all')
-        self.Append(mmi)
+
+        mmi = self.Append(wx.NewId(), 'Select &all')
         self.Bind(wx.EVT_MENU, self.selectAll, mmi)
-        mmi = wx.MenuItem(self, wx.NewId(), '&Unselect all')
-        self.Append(mmi)
+
+        mmi = self.Append(wx.NewId(), '&Unselect all')
         self.Bind(wx.EVT_MENU, self.unselectAll, mmi)
-        mmi = wx.MenuItem(self, wx.NewId(), '&Toggle')
-        self.Append(mmi)
+
+        mmi = self.Append(wx.NewId(), '&Toggle')
         self.Bind(wx.EVT_MENU, self.toggleAll, mmi)
     
     def selectAll( self, event ):
