@@ -270,40 +270,35 @@ def guess_netlist_file():
     return ''
 
 
-class menuSelection( wx.Menu ):
-    ''' @brief Menu of the distributor checkbox list. Provide select all, unselect and toggle hotkey.
-        @param TextBox handle.
-    '''
+class menuSelection(wx.Menu):
+    '''Menu of the distributor checkbox list. Provide select all, unselect and toggle hotkey.'''
     def __init__( self, parent ):
-        ''' @brief Constructor.'''
+        '''Constructor. Input: checkboxlist to handle.'''
         super(menuSelection, self).__init__()
         self.list = parent
-
         mmi = self.Append(wx.NewId(), 'Select &all')
         self.Bind(wx.EVT_MENU, self.selectAll, mmi)
-
         mmi = self.Append(wx.NewId(), '&Unselect all')
         self.Bind(wx.EVT_MENU, self.unselectAll, mmi)
-
         mmi = self.Append(wx.NewId(), '&Toggle')
         self.Bind(wx.EVT_MENU, self.toggleAll, mmi)
-    
+
     def selectAll( self, event ):
-        ''' @brief Select all distributor that exist.'''
+        '''Select all distributor that exist.'''
         event.Skip()
         for idx in range(self.list.GetCount()):
             if not self.list.IsChecked(idx):
                 self.list.Check(idx)
 
     def unselectAll( self, event ):
-        ''' @brief Unselect all distributor that exist.'''
+        '''Unselect all distributor that exist.'''
         event.Skip()
         for idx in range(self.list.GetCount()):
             if self.list.IsChecked(idx):
                 self.list.Check(idx, False)
 
     def toggleAll( self, event ):
-        ''' @brief Toggle all distributor that exist.'''
+        '''Toggle all distributor that exist.'''
         event.Skip()
         for idx in range(self.list.GetCount()):
             if self.list.IsChecked(idx):
@@ -394,8 +389,7 @@ class PadPainterFrame(wx.Frame):
         self.pin_func_list.SetToolTip(wx.ToolTip(u"Check to disable painting of all functional pin types.\nClick rigth to (un)selection all." ))
         for item in range(self.pin_func_list.GetCount()):
             self.pin_func_list.Check(item) # Start with all checked.
-        #self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
-        self.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick, self.pin_func_list)
+        self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
         pin_func_sizer.Add(self.pin_func_list, 0, wx.ALL, 5 )
 
 
@@ -414,7 +408,6 @@ class PadPainterFrame(wx.Frame):
             btn.SetToolTip(wx.ToolTip(
                     "Check to enable painting of pins that are {} to nets.".format(btn_lbl.lower())
                 ))
-            self.Bind(wx.EVT_CHECKBOX, self.HandlePinStateBtns, btn)
 
         # Action buttons for painting and clearing the selected pads.
         self.paint_btn = wx.Button(panel, -1, 'Paint')
@@ -482,9 +475,14 @@ class PadPainterFrame(wx.Frame):
         # Finally, size the frame that holds the panel.
         self.Fit()
 
-    def pin_func_list_rClick( self, event ):
+    def pin_func_list_rClick(self, event):
         ''' Open the context menu with distributors options.'''
-        self.PopupMenu(menuSelection(self.pin_func_list), event.GetPosition()[0], event.GetPosition()[1])
+        try:
+            menu = menuSelection(self.pin_func_list)
+            self.PopupMenu(menu, event.GetPosition())
+            menu.Destroy()
+        except Exception as e:
+            debug_dialog(str(e))
 
     def UpdateUnits(self, evt):
         '''Update the list of part units from the selected parts.'''
@@ -521,8 +519,9 @@ class PadPainterFrame(wx.Frame):
         ]
         # Create a list of enabled pin functions.
         selected_pin_funcs = [
-            self.pin_func_btn_lbls[btn.GetLabel()]
-            for btn in self.pin_func_btns.values() if btn.GetValue()
+            self.pin_func_btn_lbls[self.pin_func_list.GetString(i)]
+            for i in range(self.pin_func_list.GetCount())
+                if self.pin_func_list.IsChecked(i)
         ]
         # Create a list of enabled pin states.
         selected_pin_states = [
@@ -578,11 +577,6 @@ class PadPainterFrame(wx.Frame):
     def OnDone(self, evt):
         '''Close GUI when Done button is clicked.'''
         self.Close()
-
-    def HandlePinStateBtns(self, evt):
-        '''Handle checking/unchecking of pin state checkboxes.'''
-
-        
 
 
 class PadPainter(ActionPlugin):
