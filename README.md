@@ -138,8 +138,8 @@ Pressing `Paint` results in highlighting these pads:
 
 ### Contributors
 
-None yet. Why not be the first?
-
+Hildo Guillardi Júnior - https://github.com/hildogjr
+There is always place for one more.
 
 ## History
 
