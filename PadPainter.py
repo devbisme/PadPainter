@@ -375,18 +375,18 @@ class PadPainterFrame(wx.Frame):
             'In': 'I',
             'Out': 'O',
             'I/O': 'B',
-            '3-State': 'T',
-            'Pwr': 'W',
+            'Pwr In': 'W',
             'Pwr Out': 'w',
             'Passive': 'P',
-            'Unspec': 'U',
+            '3-State': 'T',
             'OpenColl': 'C',
             'OpenEmit': 'E',
+            'Unspec': 'U',
             'NC': 'N',
         }
         pin_func_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, wx.ID_ANY, u"Pin Functions:"), wx.VERTICAL)
         self.pin_func_list = wx.CheckListBox(panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, sorted(list(self.pin_func_btn_lbls)), 0)
-        self.pin_func_list.SetToolTip(wx.ToolTip(u"Check to disable painting of all functional pin types.\nClick rigth to (un)selection all." ))
+        self.pin_func_list.SetToolTip(wx.ToolTip(u"Check/uncheck to enable/disable painting of all functional pin types.\nRight-click to select/unselect/toggle all." ))
         for item in range(self.pin_func_list.GetCount()):
             self.pin_func_list.Check(item) # Start with all checked.
         self.pin_func_list.Bind(wx.EVT_RIGHT_DOWN, self.pin_func_list_rClick)
