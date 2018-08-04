@@ -138,10 +138,13 @@ Pressing `Paint` results in highlighting these pads:
 
 ### Contributors
 
-None yet. Why not be the first?
-
+Hildo Guillardi Júnior - https://github.com/hildogjr
 
 ## History
+
+### 0.2.0 (2018-07-22)
+
+* Modified GUI.
 
 ### 0.1.0 (2018-05-28)
 
