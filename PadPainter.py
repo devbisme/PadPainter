@@ -24,9 +24,7 @@
 
 from pcbnew import *
 
-import sys
-import os
-import os.path
+import sys, os, os.path
 import re
 import wx
 import wx.lib.filebrowsebutton as FBB
@@ -38,7 +36,7 @@ WIDGET_SPACING = 5
 
 def debug_dialog(msg, exception=None):
     if exception:
-        msg = '\n'.join((msg, str(exception), traceback.format.exc()))
+        msg = '\n'.join((msg, str(exception), traceback.format_exc()))
     dlg = wx.MessageDialog(None, msg, '', wx.OK)
     dlg.ShowModal()
     dlg.Destroy()
