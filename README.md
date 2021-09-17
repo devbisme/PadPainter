@@ -134,13 +134,16 @@ Pressing `Paint` results in highlighting these pads:
 
 ### Development Lead
 
-* XESS Corp. <info@xess.com>
+* Dave Vandenbout <devb@xess.com>
 
-### Contributors
+### [Other Contributors](https://github.com/devbisme/zyc/graphs/contributors)
 
-Hildo Guillardi Júnior - https://github.com/hildogjr
 
 ## History
+
+### 1.0.0 (2021-09-17)
+
+* Decided this tool was mature enough to be called 1.0.0.
 
 ### 0.2.0 (2018-07-22)
 
